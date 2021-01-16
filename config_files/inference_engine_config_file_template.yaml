@@ -1,0 +1,32 @@
+# inference engine configuration file
+
+# some notes: if a key field is left blank, it is populated with None (NoneType)
+# types are inferred: 0.1 - float, 1 - int, "train" - str, True - bool, "True" - str
+
+# general inference engine config
+operation_mode: "train" # either "train" or "infer" (str)
+
+# feature extraction config
+session_sampling: True # sample log records by session (boolean)
+window_size: 10 # how many log keys to consider in an input sequence (int)
+data_transformation: # path to a previously generated data trasformation (str)
+
+# deep learning model config
+input_size: 1 # how many features describe each input record (int)
+output_size: 20 # output size, corresponds to the total possible number of log keys (int)
+hidden_size: 64 # how many hidden units in the LSTM (int)
+num_lstm_layers: 1 # how many LSTM layers in the network (int)
+bidirectional_lstm: False # use a bi-directional LSTM (boolean)
+dropout: 0 # required when using bidrectional lstm (float)
+
+# training mode config
+batch_size: 1024 # batch size for loading data points in for model training (int)
+learning_rate: 0.1 # specify the rate at which weights are updated (float)
+num_epochs: 1000 # how many times to train the model on the training dataset (int)
+optimizer:
+  type: "adam" # which optimizer to use supports Adam - "adam" and SGD - "sgd" (str)
+  parameters: # tbd, could just have a dictionary of everythng and only select what is needed
+
+# inference config
+num_candidates: 10 # the number of candiates to considers as possible, expected log keys (int)
+model_parameters: # path to parameters describing a previously trained dataset (str)
