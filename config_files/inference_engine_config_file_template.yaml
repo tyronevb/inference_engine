@@ -17,7 +17,7 @@ output_size: 20 # output size, corresponds to the total possible number of log k
 hidden_size: 64 # how many hidden units in the LSTM (int)
 num_lstm_layers: 1 # how many LSTM layers in the network (int)
 bidirectional_lstm: False # use a bi-directional LSTM (boolean)
-dropout: 0 # required when using bidrectional lstm (float)
+dropout: 0 # optional when using stacked lstm layers (float)
 
 # training mode config
 batch_size: 1024 # batch size for loading data points in for model training (int)

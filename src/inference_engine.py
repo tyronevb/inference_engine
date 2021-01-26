@@ -77,7 +77,6 @@ class InferenceEngine(object):
 
         # inference engine parameters
         self.training_mode = True if data["operation_mode"] == "train" else False
-        self.batch_size = data["batch_size"]
 
         # feature extraction parameters
         self.sample_by_session = data["session_sampling"]
@@ -94,6 +93,7 @@ class InferenceEngine(object):
 
         if self.training_mode:
             # training parameters
+            self.batch_size = data["batch_size"]
             self.learning_rate = data["learning_rate"]
             self.num_epochs = data["num_epochs"]
             self.optimizer = data["optimizer"]["type"]
@@ -119,7 +119,7 @@ class InferenceEngine(object):
         # move model to device
         self.model = self.model.to(self.device)
 
-        # todo: maybe clean this up use logger? do once the ie is compelte
+        # todo: maybe clean this up use logger? do once the ie is complete
 
         self.log = []
         self.log.append("Inference Engine initialised in {mode} mode\n".format(mode=data["operation_mode"]))
@@ -279,7 +279,7 @@ class InferenceEngine(object):
             print("\nModel training complete. Total training time: {train_time}".format(train_time=train_end_time-train_start_time))
             print("\nModel parameters saved at: {model_path}".format(model_path=model_path))
 
-    def infer_and_detect_anomalies(self, input_dataset: pd.DataFrame) -> None:
+    def infer_and_detect_anomalies(self, input_dataset: pd.DataFrame) -> pd.DataFrame:
         """
         Perform inference to predict the next expected log key.
 
@@ -295,7 +295,8 @@ class InferenceEngine(object):
 
         :param input_dataset: a feature-extracted, parsed log file that is to undergo Log File
         Analysis to detect possible failure events
-        :return: None
+        :return: DataFrame consisting of a an anomaly detection report showing the predicted candidates,
+        actual key and whether a line is flagged as a anomaly
         """
 
         # load a previously trained model to use for prediction
@@ -361,9 +362,12 @@ class InferenceEngine(object):
 
         if self.verbose:
             print("\nAnomaly Detection Complete. Records analysed: {num_records}\n"
-                  "Total detection time: {detect_time}".format(num_records=len(anomalies),
+                  "\nNumber of anomalies detected: {num_anomalies}\n"
+                  "Total detection time: {detect_time}".format(num_records=len(anomalies), num_anomalies=anomalies_detected,
                                                                detect_time=end_time-start_time))
             print("\nAnomaly Detection Report saved at: {ad_report}".format(ad_report=report_path))
+
+        return report_df
 
     # todo complete when doing the tuning, testing and evaluation framework
     def evaluate_model(self):

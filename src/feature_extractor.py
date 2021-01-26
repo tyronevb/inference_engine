@@ -172,8 +172,8 @@ class FeatureExtractor(object):
         a window of logs and choosing the next log key in the sequence, after the window,
         as the label.
 
-        The window size is tunable. Where insufficient log events exist to create the window
-        of the specified size, the input feature sequence is padded to the window size.
+        The window size is tunable. A window is only valid if it contains the specified number of keys
+        and has a valid next log key appearing after it.
 
         For each session of log sequences, a sliding window is applied to the log sequences to
         select the input features and the label.
@@ -209,12 +209,16 @@ class FeatureExtractor(object):
                 dataset.append([sess_idx, window, next_log_key])  # append sample to dataset list
                 window_start += 1  # slide window by 1 position
             else:
+                pass
+                # todo: test this in more detail
+
+                # removed this logic on 26/01/2021
                 # when the sequence is too short for the window size, pad to window size
-                window = seq[window_start: window_start + self.window_size]
-                padding = ["PAD"] * (self.window_size - len(window))
-                window += padding
-                next_log_key = "PAD"
-                dataset.append([sess_idx, window, next_log_key]) # append sample to dataset list
+                #window = seq[window_start: window_start + self.window_size]
+                #padding = ["PAD"] * (self.window_size - len(window))
+                #window += padding
+                #next_log_key = "PAD"
+                #dataset.append([sess_idx, window, next_log_key]) # append sample to dataset list
 
         # convert dataset list to a pandas DataFrame
         df_dataset = pd.DataFrame(dataset, columns=["SessionId", "EventSequence", "Label"])
