@@ -1,7 +1,12 @@
 """
 Implements the InferenceEngine Class.
 
-Description TBD...
+The InferenceEngine Class implements the Inference Engine component of the Cognitive Computing Debugging Framework
+that performs automated log files analysis to detect failures and errors in system operation from given log files.
+The Inference Engine is first trained a given set of system log files. This training involves learning the suitable
+parameters for a deep learning neural network architecture to model the relationships between the log messages. After
+training, the model can be used to perform inference on new, unseen log files to detect anomalous events within
+the log files.
 """
 
 __author__ = "tyronevb"
@@ -14,7 +19,6 @@ import os
 import yaml
 from tqdm import tqdm
 from torch.utils.data import DataLoader
-from torch.utils.data import Dataset
 from collections import OrderedDict
 
 from src.feature_extractor import FeatureExtractor
@@ -23,7 +27,8 @@ from utils.utils import LogSeqDataset
 
 
 class InferenceEngine(object):
-    """Class definition for the InferenceEngine class"""
+    """Class definition for the InferenceEngine class."""
+
     def __init__(self, config_file: str, name: str, device: str = None, output_dir: str = None, verbose: bool = True):
         """
         Initialise InferenceEngine.
@@ -41,18 +46,20 @@ class InferenceEngine(object):
         :param output_dir: path to directory where generated outputs are to be saved. should include trailing /
         :param verbose: flag to enable verbose output and statistics
         """
-
         # this is where all outputs from *this* inference engine will be stored
         # create a path to a working directory for storing inference engine outputs
-        self.path = "{dir}inference_engine_{timestamp}/".format(dir=output_dir, timestamp=datetime.datetime.now().strftime("%d-%m-%y_%H_%M_%S"))
+        self.path = "{dir}inference_engine_{timestamp}/".format(
+            dir=output_dir, timestamp=datetime.datetime.now().strftime("%d-%m-%y_%H_%M_%S")
+        )
         os.makedirs(self.path)
 
         # change working directory
         # os.chdir(self.path)
 
         # a name prefix
-        self.ie_name = "{base}_{timestamp}_inference_engine".format(base=name,
-                                                                    timestamp=datetime.datetime.now().strftime("%d-%m-%y_%H_%M_%S"))
+        self.ie_name = "{base}_{timestamp}_inference_engine".format(
+            base=name, timestamp=datetime.datetime.now().strftime("%d-%m-%y_%H_%M_%S")
+        )
         # check which device to use i.e. CPU or GPU if available
         # or use specified device
         if device is None:
@@ -103,19 +110,26 @@ class InferenceEngine(object):
             self.model_parameters = data["model_parameters"]
 
         # instantiate a FeatureExtractor
-        self.feature_extractor = FeatureExtractor(sample_by_session=self.sample_by_session,
-                                                  window_size=self.window_size,
-                                                  training_mode=self.training_mode,
-                                                  data_transformation=self.data_transformation,
-                                                  output_dir=self.path,
-                                                  name=self.ie_name,
-                                                  verbose=self.verbose)
+        self.feature_extractor = FeatureExtractor(
+            sample_by_session=self.sample_by_session,
+            window_size=self.window_size,
+            training_mode=self.training_mode,
+            data_transformation=self.data_transformation,
+            output_dir=self.path,
+            name=self.ie_name,
+            verbose=self.verbose,
+        )
 
         # instantiate a Model
-        self.model = AnomalyDetectorLSTM(input_size=self.input_size, hidden_size=self.hidden_size,
-                                         output_size=self.output_size, num_layers=self.num_lstm_layers,
-                                         batch_first=True, dropout=self.dropout,
-                                         bidirectional=self.bidirectional_lstm)
+        self.model = AnomalyDetectorLSTM(
+            input_size=self.input_size,
+            hidden_size=self.hidden_size,
+            output_size=self.output_size,
+            num_layers=self.num_lstm_layers,
+            batch_first=True,
+            dropout=self.dropout,
+            bidirectional=self.bidirectional_lstm,
+        )
 
         # move model to device
         self.model = self.model.to(self.device)
@@ -123,22 +137,39 @@ class InferenceEngine(object):
         self.log = []
         self.log.append("Inference Engine initialised in {mode} mode\n".format(mode=data["operation_mode"]))
         self.log.append("Feature Extraction Setup: \n")
-        self.log.append("Session Sampling: {session}\nWindow Size: {window}\n".format(session=self.sample_by_session,
-                                                                        window=self.window_size))
+        self.log.append(
+            "Session Sampling: {session}\nWindow Size: {window}\n".format(
+                session=self.sample_by_session, window=self.window_size
+            )
+        )
         self.log.append("Model Architecture:\n")
-        self.log.append("Input Size: {input}\nHidden Size: {hidden}\nOutput Size: {output}\nLSTM Layers: {layers}\nBidrectional: {bidir}\n".format(
-            input=self.input_size, hidden=self.hidden_size, output=self.output_size, layers=self.num_lstm_layers,
-            bidir=self.bidirectional_lstm))
+        self.log.append(
+            "Input Size: {input}\nHidden Size: {hidden}\nOutput Size: {output}\nLSTM Layers: {layers}\nBidrectional: {bidir}\n".format(
+                input=self.input_size,
+                hidden=self.hidden_size,
+                output=self.output_size,
+                layers=self.num_lstm_layers,
+                bidir=self.bidirectional_lstm,
+            )
+        )
 
         self.log.append("Working Directory: {dir}".format(dir=self.path))
 
         if self.training_mode:
             self.log.append("Training Configuration:\n")
-            self.log.append("Epochs: {epochs}\nLearning Rate: {learn}\nOptimizer: {optim}\n".format(epochs=self.num_epochs, learn=self.learning_rate, optim=self.optimizer))
+            self.log.append(
+                "Epochs: {epochs}\nLearning Rate: {learn}\nOptimizer: {optim}\n".format(
+                    epochs=self.num_epochs, learn=self.learning_rate, optim=self.optimizer
+                )
+            )
 
         else:
             self.log.append("Inference Configuration:\n")
-            self.log.append("Number of Valid Candidates: {num_candidates}\nModel Source: {model}\n".format(num_candidates=self.num_candidates, model=self.model_parameters))
+            self.log.append(
+                "Number of Valid Candidates: {num_candidates}\nModel Source: {model}\n".format(
+                    num_candidates=self.num_candidates, model=self.model_parameters
+                )
+            )
 
         if self.verbose:
             for line in self.log:
@@ -157,8 +188,7 @@ class InferenceEngine(object):
             #     print("Inference Configuration:\n")
             #     print("Number of Valid Candidates: {num_candidates}\nModel Source: {model}".format(num_candidates=self.num_candidates, model=self.model_parameters))
 
-    def batch_and_load_data_to_tensors(self, features_dataset: pd.DataFrame) \
-            -> DataLoader:
+    def batch_and_load_data_to_tensors(self, features_dataset: pd.DataFrame) -> DataLoader:
         """
         Split input data into batch and encode as tensors.
 
@@ -168,21 +198,18 @@ class InferenceEngine(object):
         Must contain "EventSequence" and "Label" columns for each record
         :return: Iterable DataLoader containing input data encoded as tensors
         """
-
         # split into features and labels and encode as tensors
         # also ensures the dimensions of the input sequence are correct
-        dataset = LogSeqDataset(features_dataset["EventSequence"],
-                                features_dataset["Label"])
+        dataset = LogSeqDataset(features_dataset["EventSequence"], features_dataset["Label"])
 
         # split into batches and create an iterable for the data set
-        data_loader = DataLoader(dataset,
-                                 batch_size=self.batch_size,
-                                 shuffle=True,
-                                 pin_memory=True)
+        data_loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True, pin_memory=True)
 
-        print("\n{input_record} input records split into {batches} batches of size {batch_size}".format(
-            input_record=len(dataset), batches=len(data_loader), batch_size=self.batch_size
-        ))
+        print(
+            "\n{input_record} input records split into {batches} batches of size {batch_size}".format(
+                input_record=len(dataset), batches=len(data_loader), batch_size=self.batch_size
+            )
+        )
 
         return data_loader
 
@@ -196,10 +223,8 @@ class InferenceEngine(object):
         :return: DataFrame containing input features and labels extracted from
         the given dataset
         """
-
         # extract input features and label pairs from the input data
-        feature_df = self.feature_extractor.extract_features(df_parsed_log=df_parsed_log,
-                                                             save_to_file=True)
+        feature_df = self.feature_extractor.extract_features(df_parsed_log=df_parsed_log, save_to_file=True)
         return feature_df
 
     def train_model(self, train_data: DataLoader) -> None:
@@ -215,18 +240,15 @@ class InferenceEngine(object):
         :param train_data: batched, input training data, in an iterable DataLoader object
         :return: None
         """
-
         # define optimizer to be used - this updates the parameters of the model
         # once the wieghts have been computed
         # two optimizers are supported
 
         # todo: which parameters of the optimizers are to be tunable?
         if self.optimizer == "adam":
-            optimizer = torch.optim.Adam(self.model.parameters(),
-                                         lr=self.learning_rate)
+            optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
         elif self.optimizer == "sgd":
-            optimizer = torch.optim.SGD(self.model.parameters(),
-                                        lr=self.learning_rate)
+            optimizer = torch.optim.SGD(self.model.parameters(), lr=self.learning_rate)
         else:
             raise NotImplementedError("Invalid optimization strategy specified")
 
@@ -256,24 +278,33 @@ class InferenceEngine(object):
             # loop through the batches of input training dataset
             for idx, (batch_logs, batch_labels) in enumerate(data_progress):
                 output = self.model(input_data=batch_logs, device=self.device)  # use model to predict output
-                loss = criterion(output, batch_labels.to(self.device))  # compute loss between predicted output and labels
+                loss = criterion(
+                    output, batch_labels.to(self.device)
+                )  # compute loss between predicted output and labels
                 total_loss_per_epoch += float(loss)  # accumulate loss
                 loss.backward()  # perform back-propagation and compute gradients
                 optimizer.step()  # use gradients to update weights
                 optimizer.zero_grad()  # clear existing gradients to prevent accumulation
-                print("Epoch: {epoch} Train Loss: {train_loss:.5f}".format(epoch=epoch, train_loss=total_loss_per_epoch/(idx+1)))
+                print(
+                    "Epoch: {epoch} Train Loss: {train_loss:.5f}".format(
+                        epoch=epoch, train_loss=total_loss_per_epoch / (idx + 1)
+                    )
+                )
 
         # overall model training time (tock)
         train_end_time = datetime.datetime.now()
 
         # save the trained model parameters and the optimizer state dict
-        data_to_save = {"state_dict": self.model.state_dict(),
-                        "optimizer_state_dict": optimizer.state_dict()}
+        data_to_save = {"state_dict": self.model.state_dict(), "optimizer_state_dict": optimizer.state_dict()}
         model_path = self.path + self.ie_name + "_model.pth"
         torch.save(data_to_save, model_path)
 
         if self.verbose:
-            print("\nModel training complete. Total training time: {train_time}".format(train_time=train_end_time-train_start_time))
+            print(
+                "\nModel training complete. Total training time: {train_time}".format(
+                    train_time=train_end_time - train_start_time
+                )
+            )
             print("\nModel parameters saved at: {model_path}".format(model_path=model_path))
 
     def infer_and_detect_anomalies(self, input_dataset: pd.DataFrame) -> pd.DataFrame:
@@ -295,7 +326,6 @@ class InferenceEngine(object):
         :return: DataFrame consisting of a an anomaly detection report showing the predicted candidates,
         actual key and whether a line is flagged as a anomaly
         """
-
         # load a previously trained model to use for prediction
         self.model.load_state_dict(torch.load(self.model_parameters)["state_dict"])
 
@@ -319,8 +349,11 @@ class InferenceEngine(object):
                 actual_label = record["Label"]  # get the actual label (log key after the input sequence)
 
                 # encode input sequence as tensor and move to device
-                input_seq = torch.tensor(input_seq, dtype=torch.float).view(
-                    -1, self.window_size, self.input_size).to(self.device)
+                input_seq = (
+                    torch.tensor(input_seq, dtype=torch.float)
+                    .view(-1, self.window_size, self.input_size)
+                    .to(self.device)
+                )
 
                 # encode actual output label as tensor and move to device
                 actual_label = torch.tensor(actual_label, dtype=torch.float).view(-1).to(self.device)
@@ -332,7 +365,7 @@ class InferenceEngine(object):
                 # not that these are sorted in ascending order
                 # the last item in the list has the highest probability of being the next key
                 # argsort sorts the tensor items in ascending order and returns a list of the indices corresponding to the sorted items
-                top_candidates = torch.argsort(output, 1)[0][-self.num_candidates:]
+                top_candidates = torch.argsort(output, 1)[0][-self.num_candidates :]
 
                 # save information about record to dictionary for further inspection
                 tmp_anomaly["input_seq"] = input_seq.flatten().tolist()
@@ -358,16 +391,26 @@ class InferenceEngine(object):
         report_df.to_csv(path_or_buf=report_path)
 
         if self.verbose:
-            print("\nAnomaly Detection Complete. Records analysed: {num_records}\n"
-                  "\nNumber of anomalies detected: {num_anomalies}\n"
-                  "Total detection time: {detect_time}".format(num_records=len(anomalies), num_anomalies=anomalies_detected,
-                                                               detect_time=end_time-start_time))
+            print(
+                "\nAnomaly Detection Complete. Records analysed: {num_records}\n"
+                "\nNumber of anomalies detected: {num_anomalies}\n"
+                "Total detection time: {detect_time}".format(
+                    num_records=len(anomalies), num_anomalies=anomalies_detected, detect_time=end_time - start_time
+                )
+            )
             print("\nAnomaly Detection Report saved at: {ad_report}".format(ad_report=report_path))
 
         return report_df
 
     # todo complete when doing the tuning, testing and evaluation framework
     def evaluate_model(self):
+        """
+        Evaluate model performance.
+
+        :return:
+        """
         # check for anomalies: compare prediction to next real log event
         pass
+
+
 # end
