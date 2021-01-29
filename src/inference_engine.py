@@ -24,7 +24,7 @@ from utils.utils import LogSeqDataset
 
 class InferenceEngine(object):
     """Class definition for the InferenceEngine class"""
-    def __init__(self, config_file: str, name: str, device: str = None, verbose: bool = True):
+    def __init__(self, config_file: str, name: str, device: str = None, output_dir: str = None, verbose: bool = True):
         """
         Initialise InferenceEngine.
 
@@ -38,15 +38,14 @@ class InferenceEngine(object):
         :param config_file: path to configuration file containing Inference Engine configuration
         :param name: name for *this* inference engine
         :param device: device to use for training, either "cpu" or "cuda". Auto-detects if None
+        :param output_dir: path to directory where generated outputs are to be saved. should include trailing /
         :param verbose: flag to enable verbose output and statistics
         """
 
-        # todo: create a directory, and change to the working directory
         # this is where all outputs from *this* inference engine will be stored
         # create a path to a working directory for storing inference engine outputs
-        self.path = "{base}_{timestamp}".format(base=name,
-                                                timestamp=datetime.datetime.now().strftime("%d-%m-%y_%H_%M_%S"))
-        os.mkdir(self.path)
+        self.path = "{dir}inference_engine_{timestamp}/".format(dir=output_dir, timestamp=datetime.datetime.now().strftime("%d-%m-%y_%H_%M_%S"))
+        os.makedirs(self.path)
 
         # change working directory
         # os.chdir(self.path)
@@ -108,6 +107,8 @@ class InferenceEngine(object):
                                                   window_size=self.window_size,
                                                   training_mode=self.training_mode,
                                                   data_transformation=self.data_transformation,
+                                                  output_dir=self.path,
+                                                  name=self.ie_name,
                                                   verbose=self.verbose)
 
         # instantiate a Model
@@ -119,17 +120,13 @@ class InferenceEngine(object):
         # move model to device
         self.model = self.model.to(self.device)
 
-        # todo: maybe clean this up use logger? do once the ie is complete
-
         self.log = []
         self.log.append("Inference Engine initialised in {mode} mode\n".format(mode=data["operation_mode"]))
         self.log.append("Feature Extraction Setup: \n")
-        self.log.append("\nSession Sampling: {session}\nWindow Size: {window}\n".format(session=self.sample_by_session,
-                                                                         window=self.window_size))
-        self.log.append("\nSession Sampling: {session}\nWindow Size: {window}\n".format(session=self.sample_by_session,
+        self.log.append("Session Sampling: {session}\nWindow Size: {window}\n".format(session=self.sample_by_session,
                                                                         window=self.window_size))
         self.log.append("Model Architecture:\n")
-        self.log.append("\nInput Size: {input}\nHidden Size: {hidden}\nOutput Size: {output}\nLSTM Layers: {layers}\nBidrectional: {bidir}\n".format(
+        self.log.append("Input Size: {input}\nHidden Size: {hidden}\nOutput Size: {output}\nLSTM Layers: {layers}\nBidrectional: {bidir}\n".format(
             input=self.input_size, hidden=self.hidden_size, output=self.output_size, layers=self.num_lstm_layers,
             bidir=self.bidirectional_lstm))
 
@@ -137,11 +134,11 @@ class InferenceEngine(object):
 
         if self.training_mode:
             self.log.append("Training Configuration:\n")
-            self.log.append("Epochs: {epochs}\nLearning Rate: {learn}\nOptimizer: {optim}".format(epochs=self.num_epochs, learn=self.learning_rate, optim=self.optimizer))
+            self.log.append("Epochs: {epochs}\nLearning Rate: {learn}\nOptimizer: {optim}\n".format(epochs=self.num_epochs, learn=self.learning_rate, optim=self.optimizer))
 
         else:
             self.log.append("Inference Configuration:\n")
-            self.log.append("Number of Valid Candidates: {num_candidates}\nModel Source: {model}".format(num_candidates=self.num_candidates, model=self.model_parameters))
+            self.log.append("Number of Valid Candidates: {num_candidates}\nModel Source: {model}\n".format(num_candidates=self.num_candidates, model=self.model_parameters))
 
         if self.verbose:
             for line in self.log:
@@ -272,7 +269,7 @@ class InferenceEngine(object):
         # save the trained model parameters and the optimizer state dict
         data_to_save = {"state_dict": self.model.state_dict(),
                         "optimizer_state_dict": optimizer.state_dict()}
-        model_path = self.path + "/" + self.ie_name + "_model.pth"
+        model_path = self.path + self.ie_name + "_model.pth"
         torch.save(data_to_save, model_path)
 
         if self.verbose:
@@ -357,7 +354,7 @@ class InferenceEngine(object):
 
         # save this to to pandas dataframe and write to csv
         report_df = pd.DataFrame(anomalies)
-        report_path = self.path + "/" + self.ie_name + "_anomaly_detection_report_raw.csv"
+        report_path = self.path + self.ie_name + "_anomaly_detection_report_raw.csv"
         report_df.to_csv(path_or_buf=report_path)
 
         if self.verbose:

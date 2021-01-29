@@ -27,8 +27,5 @@ class LogSeqDataset(Dataset):
         return torch.tensor(self.logs[idx], dtype=torch.float).unsqueeze(dim=-1), \
                self.labels[idx]
     # need to unsequeeze to get the input size to match what the lstm model expects
-# end
 
-# todo --> possibly more relavant on the framework level?
-def train_test_split():
-    pass
+# end

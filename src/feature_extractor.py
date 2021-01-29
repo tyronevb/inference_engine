@@ -21,7 +21,8 @@ class FeatureExtractor(object):
 
     def __init__(self, sample_by_session: bool = False,
                  window_size: int = 10, training_mode: bool = True,
-                 data_transformation: str = None, verbose: bool = False):
+                 data_transformation: str = None, output_dir: str = None,
+                 name: str = None, verbose: bool = False):
         """
         Initialise FeatureExtractor.
 
@@ -40,6 +41,8 @@ class FeatureExtractor(object):
         for model training or prediction
         :param data_transformation: specify path to yaml file containing previously stored
         data transformation mapping. Required if features are being extracted for prediction
+        :param output_dir: path to directory where generated outputs are to be saved. should include trailing /
+        :param name: name for *this* feature extractor
         :param verbose: enable printing of various statistics during the feature extraction process
         """
 
@@ -47,6 +50,8 @@ class FeatureExtractor(object):
         self.window_size = window_size
         self.verbose = verbose
         self.training_mode = training_mode
+        self.output_dir = output_dir
+        self.name = name
 
         # check if data transformation is required and provided
         if not self.training_mode and data_transformation is None:
@@ -108,7 +113,8 @@ class FeatureExtractor(object):
 
         if save_to_file:
             time_now = datetime.datetime.now().strftime("%d-%m-%Y-%Hh%Mm%Ss")
-            filename = "dataset_with_features_{timestamp}.csv".format(timestamp=time_now)
+            filename = "{dir}{name}_dataset_with_features_{timestamp}.csv".format(dir=self.output_dir, name=self.name,
+                                                                                  timestamp=time_now)
             df_dataset_transformed.to_csv(filename)
             print("\nFeature extracted dataset saved to {}".format(filename))
 
@@ -210,8 +216,6 @@ class FeatureExtractor(object):
                 window_start += 1  # slide window by 1 position
             else:
                 pass
-                # todo: test this in more detail
-
                 # removed this logic on 26/01/2021
                 # when the sequence is too short for the window size, pad to window size
                 #window = seq[window_start: window_start + self.window_size]
@@ -261,7 +265,9 @@ class FeatureExtractor(object):
 
         # save derived transformation to a yaml file
         timestamp = datetime.datetime.now().strftime("%d-%m-%Y-%Hh%Mm%Ss")
-        transformation_filename = "log_key_mapping-{timestamp}.yaml".format(timestamp=timestamp)
+        transformation_filename = "{dir}{name}_log_key_mapping-{timestamp}.yaml".format(dir=self.output_dir,
+                                                                                        name=self.name,
+                                                                                        timestamp=timestamp)
 
         with open(transformation_filename, "w") as f:
             _ = yaml.dump(transformation, f)
@@ -322,3 +328,5 @@ class FeatureExtractor(object):
             lambda x: self.data_transformation.get(x, 0))
 
         return feature_dataset
+
+# end
