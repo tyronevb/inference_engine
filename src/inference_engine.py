@@ -444,5 +444,35 @@ class InferenceEngine(object):
 
         return runtime, acc_score
 
+    def update_component_parameters(self) -> None:
+        """
+        Update the Anomaly Detection Model and Feature Extractor Components.
+
+        Run after updating the class attributes describing these components
+        :return: Nothing
+        """
+        self.feature_extractor = FeatureExtractor(
+            sample_by_session=self.sample_by_session,
+            window_size=self.window_size,
+            training_mode=self.training_mode,
+            data_transformation=self.data_transformation,
+            output_dir=self.path,
+            name=self.ie_name,
+            verbose=self.verbose,
+        )
+
+        self.model = AnomalyDetectorLSTM(
+            input_size=self.input_size,
+            hidden_size=self.hidden_size,
+            output_size=self.output_size,
+            num_layers=self.num_lstm_layers,
+            batch_first=True,
+            dropout=self.dropout,
+            bidirectional=self.bidirectional_lstm,
+        )
+
+        # move model to device
+        self.model = self.model.to(self.device)
+
 
 # end
