@@ -7,9 +7,14 @@ __date__ = "2021"
 import argparse
 import pandas as pd
 import sys
+from ast import literal_eval
+from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_score
 
 sys.path.append("..")
+
 from src.inference_engine import InferenceEngine  # noqa
+from src.feature_extractor import FeatureExtractor  # noqa
+from utils.hdfs_data_loader import load_HDFS  # noqa
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -73,6 +78,24 @@ if __name__ == "__main__":
         default=None,
         help="Specify which compute device to use for deep learning model training and inference",
     )
+    parser.add_argument(
+        "-e",
+        "--evaluate",
+        action="store",
+        help="Evaluate the performance of the Inference Engine. Requires"
+        "ground truth dataset with labelled anomalies corresponding to given log file to be provided. "
+        "Provide as absolute path to ground truth csv. Only supported for HDFS dataset. The preprocessed, "
+        "feature-extracted dataset must be provided with the -l flag",
+        default=None,
+    )
+    parser.add_argument(
+        "-t",
+        "--transformation",
+        action="store",
+        help="Specify path to a stored feature transformation. Only required when running in evaluate mode"
+        " and in inference mode. Transformation to be stored in yaml file.",
+        default=None,
+    )
 
     args = parser.parse_args()
 
@@ -88,11 +111,39 @@ if __name__ == "__main__":
         verbose=args.verbose,
     )
 
-    # load parsed log file
-    df_parsed_log = pd.read_csv(args.parsed_log_file)
+    # preprocessed hdfs dataset & ground truth available
+    # slightly different feature extraction process required
+    if args.evaluate:
+        df_parsed_log = pd.read_csv(
+            args.parsed_log_file, converters={"EventSequence": literal_eval}
+        )  # required to read as a literal list dtype
+        if args.mode == "training":
+            # instantiate a FeatureExtractor
+            feature_extractor = FeatureExtractor(
+                training_mode=True,
+                data_transformation=None,
+                output_dir=args.output_dir,
+                name=args.name,
+                verbose=args.verbose,
+            )
+            feature_extractor.unique_keys = df_parsed_log["Label"].unique()
+            features_dataset = feature_extractor.fit_transform(df_parsed_log)
+        else:
+            # instantiate a FeatureExtractor
+            feature_extractor = FeatureExtractor(
+                training_mode=False,
+                data_transformation=args.transformation,
+                output_dir=args.output_dir,
+                name=args.name,
+                verbose=args.verbose,
+            )
+            features_dataset = feature_extractor.transform(df_parsed_log)
 
-    # extract features from given parsed log file
-    features_dataset = inference_engine.get_features(df_parsed_log=df_parsed_log)
+    else:
+        # load parsed log file
+        df_parsed_log = pd.read_csv(args.parsed_log_file)
+        # extract features from given parsed log file
+        features_dataset = inference_engine.get_features(df_parsed_log=df_parsed_log)
 
     if args.mode == "training":
         print(". . . running Inference Engine in training mode . . .\n")
@@ -100,11 +151,60 @@ if __name__ == "__main__":
         data_loader = inference_engine.batch_and_load_data_to_tensors(features_dataset=features_dataset)
         # train the anomaly detection model
         inference_engine.train_model(train_data=data_loader)
+
+        # infer on the trained model --> for evaluating training performance
+        anomaly_detection_report = inference_engine.infer_and_detect_anomalies(
+            input_dataset=features_dataset, load_model=False
+        )
     else:
         print(". . . running Inference Engine in inference mode . . .\n")
         # for inference mode, use the features dataset
         # use a previously trained model to perform inference and detect anomalies
         anomaly_detection_report = inference_engine.infer_and_detect_anomalies(input_dataset=features_dataset)
+
+    # evaluate LSTM Model Performance
+    infer_time, accuracy = inference_engine.evaluate_model(anomaly_detection_report)
+    print("\nLSTM Model Performance:")
+    print("Inference Time: {i_time}\nModel Accuracy: {acc}\n".format(i_time=infer_time, acc=accuracy))
+
+    # evaluate anomaly detection performance --> precision, recall, f1_measure, false positives, false negatives
+    # required ground truth of actual anomalies corresponding to the dataset
+    if args.evaluate:
+        print("Inference Engine Anomaly Detection Performance")
+
+        # load the ground truth for anomalies
+        df_anomaly_ground_truth = pd.read_csv(args.evaluate)
+
+        # append true anomaly labels to the anomaly detection report
+        anomaly_detection_report["anomaly_ground_truth"] = df_anomaly_ground_truth["SessionLabel"]
+
+        # per session evaluation - for hdfs (anomalies are recorded per session)
+        anomaly_detection_report = anomaly_detection_report.groupby("session_id", as_index=False).sum()
+        anomaly_detection_report["anomaly_ground_truth"] = (
+            anomaly_detection_report["anomaly_ground_truth"] > 0
+        ).astype(int)
+        anomaly_detection_report["anomaly"] = (anomaly_detection_report["anomaly"] > 0).astype(int)
+
+        # per line evaluation - future support for other log files if ground truth is available
+        # nothing special here - just use the columns
+        # todo: add a flag to specify per session or per line anomaly evaluation
+
+        y_true = anomaly_detection_report["anomaly_ground_truth"]
+        y_pred = anomaly_detection_report["anomaly"]
+
+        tn, fp, fn, tp = confusion_matrix(y_true=y_true, y_pred=y_pred).ravel()
+
+        precision = precision_score(y_true=y_true, y_pred=y_pred)
+        recall = recall_score(y_true=y_true, y_pred=y_pred)
+        f1_measure = f1_score(y_true=y_true, y_pred=y_pred)
+        false_alarm_rate = fp / (tn + fp)
+
+        print(
+            "Precision: {precision}\nRecall: {recall}\nF1: {f1}\nFalse Positives: {fp}\nFalse Negatives: {fn}"
+            "\nFalse Alarm Rate: {far}".format(
+                precision=precision, recall=recall, f1=f1_measure, fp=fp, fn=fn, far=false_alarm_rate
+            )
+        )
 
     print("====================================\n")
 

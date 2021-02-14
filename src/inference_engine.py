@@ -17,6 +17,7 @@ import torch
 import pandas as pd
 import os
 import yaml
+from sklearn.metrics import accuracy_score
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 from collections import OrderedDict
@@ -97,17 +98,17 @@ class InferenceEngine(object):
         self.bidirectional_lstm = data["bidirectional_lstm"]
         self.dropout = data["dropout"]
 
-        if self.training_mode:
-            # training parameters
-            self.batch_size = data["batch_size"]
-            self.learning_rate = data["learning_rate"]
-            self.num_epochs = data["num_epochs"]
-            self.optimizer = data["optimizer"]["type"]
-            self.optimizer_parameters = data["optimizer"]["parameters"]
-        else:
-            # inference parameters
-            self.num_candidates = data["num_candidates"]
-            self.model_parameters = data["model_parameters"]
+        # training parameters
+        self.batch_size = data["batch_size"]
+        self.learning_rate = data["learning_rate"]
+        self.num_epochs = data["num_epochs"]
+        self.optimizer = data["optimizer"]["type"]
+        self.optimizer_parameters = data["optimizer"]["parameters"]
+        self.training_time = None
+        # inference parameters
+        self.num_candidates = data["num_candidates"]
+        self.model_parameters = data["model_parameters"]
+        self.inference_time = None
 
         # instantiate a FeatureExtractor
         self.feature_extractor = FeatureExtractor(
@@ -144,7 +145,8 @@ class InferenceEngine(object):
         )
         self.log.append("Model Architecture:\n")
         self.log.append(
-            "Input Size: {input}\nHidden Size: {hidden}\nOutput Size: {output}\nLSTM Layers: {layers}\nBidrectional: {bidir}\n".format(
+            "Input Size: {input}\nHidden Size: {hidden}\nOutput Size: {output}"
+            "\nLSTM Layers: {layers}\nBidrectional: {bidir}\n".format(
                 input=self.input_size,
                 hidden=self.hidden_size,
                 output=self.output_size,
@@ -293,6 +295,7 @@ class InferenceEngine(object):
 
         # overall model training time (tock)
         train_end_time = datetime.datetime.now()
+        self.training_time = train_end_time - train_start_time
 
         # save the trained model parameters and the optimizer state dict
         data_to_save = {"state_dict": self.model.state_dict(), "optimizer_state_dict": optimizer.state_dict()}
@@ -300,14 +303,11 @@ class InferenceEngine(object):
         torch.save(data_to_save, model_path)
 
         if self.verbose:
-            print(
-                "\nModel training complete. Total training time: {train_time}".format(
-                    train_time=train_end_time - train_start_time
-                )
-            )
+            print("\nModel training complete. Total training time: {train_time}".format(train_time=self.training_time))
             print("\nModel parameters saved at: {model_path}".format(model_path=model_path))
 
-    def infer_and_detect_anomalies(self, input_dataset: pd.DataFrame) -> pd.DataFrame:
+    # @profile  # uncomment to enable memory usage profiling
+    def infer_and_detect_anomalies(self, input_dataset: pd.DataFrame, load_model: bool = True) -> pd.DataFrame:
         """
         Perform inference to predict the next expected log key.
 
@@ -326,8 +326,11 @@ class InferenceEngine(object):
         :return: DataFrame consisting of a an anomaly detection report showing the predicted candidates,
         actual key and whether a line is flagged as a anomaly
         """
-        # load a previously trained model to use for prediction
-        self.model.load_state_dict(torch.load(self.model_parameters)["state_dict"])
+        if load_model:
+            # load a previously trained model to use for prediction
+            self.model.load_state_dict(torch.load(self.model_parameters)["state_dict"])
+
+        # otherwise, use *this* model . . . (for evaluating the model on the training data)
 
         # set the model for evaluation mode (nothing to be learned)
         self.model.eval()
@@ -361,21 +364,29 @@ class InferenceEngine(object):
                 # use the anomaly detection model to predict the next log key for the given input sequence
                 output = self.model(input_data=input_seq, device=self.device)
 
+                # output contains a list of probabilities corresponding to each possible output class
+                # each element at each index is the probability of that class being the next key in the seq
+                # each index represents a class
+
                 # select the top candidate next log keys as predicted by the model
-                # not that these are sorted in ascending order
+                # note that these are sorted in ascending order
                 # the last item in the list has the highest probability of being the next key
                 # argsort sorts the tensor items in ascending order and returns a list of the indices corresponding to the sorted items
                 top_candidates = torch.argsort(output, 1)[0][-self.num_candidates :]
 
                 # save information about record to dictionary for further inspection
+                tmp_anomaly["session_id"] = record["SessionId"]
                 tmp_anomaly["input_seq"] = input_seq.flatten().tolist()
-                tmp_anomaly["actual_label"] = actual_label.flatten().tolist()
+                tmp_anomaly["predicted_label"] = (
+                    top_candidates[-1].flatten().item()
+                )  # predicted most likely next log key
+                tmp_anomaly["actual_label"] = actual_label.flatten().item()
                 tmp_anomaly["candidates"] = top_candidates.flatten().tolist()
 
                 # check if the actual key is among the top candidates
                 if actual_label not in top_candidates:
                     # anomaly detected (according to model)
-                    tmp_anomaly["anomaly"] = 1  # set anomaly flag for the record
+                    tmp_anomaly["anomaly"] = 1  # set anomaly flag for the record, note that 1 == anomaly case
                     anomalies_detected += 1  # increment detection counter
                 else:
                     tmp_anomaly["anomaly"] = 0
@@ -384,6 +395,7 @@ class InferenceEngine(object):
 
         # prediction end time
         end_time = datetime.datetime.now()
+        self.inference_time = end_time - start_time
 
         # save this to to pandas dataframe and write to csv
         report_df = pd.DataFrame(anomalies)
@@ -395,7 +407,7 @@ class InferenceEngine(object):
                 "\nAnomaly Detection Complete. Records analysed: {num_records}\n"
                 "\nNumber of anomalies detected: {num_anomalies}\n"
                 "Total detection time: {detect_time}".format(
-                    num_records=len(anomalies), num_anomalies=anomalies_detected, detect_time=end_time - start_time
+                    num_records=len(anomalies), num_anomalies=anomalies_detected, detect_time=self.inference_time
                 )
             )
             print("\nAnomaly Detection Report saved at: {ad_report}".format(ad_report=report_path))
@@ -403,14 +415,34 @@ class InferenceEngine(object):
         return report_df
 
     # todo complete when doing the tuning, testing and evaluation framework
-    def evaluate_model(self):
+    def evaluate_model(self, df_report: pd.DataFrame) -> [datetime.datetime, float]:
         """
-        Evaluate model performance.
+        Evaluate LSTM model performance.
 
-        :return:
+        This method evaluates the performance of the LSTM model's capability to correctly predict/classify the next
+        log key for a given input sequence of log keys. The performance is measured as the accuracy represented by the
+        ratio of correct classifications/predictions.
+
+        The time taken to perform inference is also reported.
+
+        :param df_report: DataFrame containing the Anomaly Detection Report generated when performing inference
+        on a log file
+        :return: runtime - how long it took to perform inference, acc_score - the accuracy of the LSTM prediction/classification model
         """
         # check for anomalies: compare prediction to next real log event
-        pass
+
+        # todo: this should return ALL Performance Metrics - NO - that would require ground truth
+        # this method only evaluates the accuracy with which the model can correctly predict the next log key for a given input sequence of logs
+        # and also the inference time
+
+        y_true = df_report["actual_label"]
+        y_pred = df_report["predicted_label"]
+
+        acc_score = accuracy_score(y_true=y_true, y_pred=y_pred, normalize=True)
+
+        runtime = self.inference_time
+
+        return runtime, acc_score
 
 
 # end
