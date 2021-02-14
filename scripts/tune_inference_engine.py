@@ -17,7 +17,6 @@ sys.path.append("..")
 
 from src.inference_engine import InferenceEngine  # noqa
 from src.feature_extractor import FeatureExtractor  # noqa
-from utils.hdfs_data_loader import load_HDFS  # noqa
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -111,12 +110,15 @@ if __name__ == "__main__":
             verbose=args.verbose,
         )
         feature_extractor.unique_keys = df_parsed_log["Label"].unique()
+        num_unique_keys = df_parsed_log["Label"].nunique()
         features_dataset = feature_extractor.fit_transform(df_parsed_log)
     else:
         # load parsed log file
         df_parsed_log = pd.read_csv(args.parsed_log_file)
         # extract features from given parsed log file
         features_dataset = inference_engine.get_features(df_parsed_log=df_parsed_log)
+        # todo: get number of unique keys
+        num_unique_keys = df_parsed_log["EventId"].nunique()
 
     start_t = datetime.now()
     print("==========================")
@@ -137,6 +139,9 @@ if __name__ == "__main__":
 
     results = []  # store evaluation results of the various models
     tuning_record = []  # store tuning record of the process
+
+    # set output size
+    inference_engine.output_size = num_unique_keys
 
     # get new parameters from ParameterGrid
     for idx, params in tqdm(enumerate(parameter_grid), desc="\nTuning . . . .", mininterval=0.01):
