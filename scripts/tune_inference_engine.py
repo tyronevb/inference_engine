@@ -120,6 +120,7 @@ if __name__ == "__main__":
         inference_engine.num_lstm_layers = params["num_layers"]
         inference_engine.bidirectional_lstm = params["bidirectional"]
         inference_engine.window_size = params["window_size"]
+        inference_engine.batch_size = params["batch_size"]
 
         # set output size
         inference_engine.output_size = num_unique_keys + 2  # take into account PAD and OOV
