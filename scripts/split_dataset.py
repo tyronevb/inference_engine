@@ -83,18 +83,23 @@ if __name__ == "__main__":
         window_size=args.window_size,
     )
 
+    # merge x and window y
+    x_train["Label"] = window_y_train
+    x_validation["Label"] = window_y_validation
+    x_test["Label"] = window_y_test
+
     x_train.to_csv("{out_dir}{base}_x_train.csv".format(out_dir=args.output_dir, base=log_base_name))
-    window_y_train.to_csv("{out_dir}{base}_window_y_train.csv".format(out_dir=args.output_dir, base=log_base_name))
+    # window_y_train.to_csv("{out_dir}{base}_window_y_train.csv".format(out_dir=args.output_dir, base=log_base_name))
     y_train.to_csv("{out_dir}{base}_y_train.csv".format(out_dir=args.output_dir, base=log_base_name))
 
     x_validation.to_csv("{out_dir}{base}_x_validation.csv".format(out_dir=args.output_dir, base=log_base_name))
-    window_y_validation.to_csv(
-        "{out_dir}{base}_window_y_validation.csv".format(out_dir=args.output_dir, base=log_base_name)
-    )
+    # window_y_validation.to_csv(
+    #    "{out_dir}{base}_window_y_validation.csv".format(out_dir=args.output_dir, base=log_base_name)
+    # )
     y_validation.to_csv("{out_dir}{base}_y_validation.csv".format(out_dir=args.output_dir, base=log_base_name))
 
     x_test.to_csv("{out_dir}{base}_x_test.csv".format(out_dir=args.output_dir, base=log_base_name))
-    window_y_test.to_csv("{out_dir}{base}_window_y_test.csv".format(out_dir=args.output_dir, base=log_base_name))
+    # window_y_test.to_csv("{out_dir}{base}_window_y_test.csv".format(out_dir=args.output_dir, base=log_base_name))
     y_test.to_csv("{out_dir}{base}_y_test.csv".format(out_dir=args.output_dir, base=log_base_name))
 
 # end

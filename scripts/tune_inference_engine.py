@@ -10,7 +10,6 @@ import numpy as np
 import sys
 from datetime import datetime
 from tqdm import tqdm
-from ast import literal_eval
 from sklearn.model_selection import ParameterGrid
 
 sys.path.append("..")
@@ -71,14 +70,6 @@ if __name__ == "__main__":
         default=None,
         help="Specify which compute device to use for deep learning model training and inference",
     )
-    parser.add_argument(
-        "-s",
-        "--hdfs",
-        action="store_true",
-        help="Specify that HDFS data is being used. Requires slightly different preprocessing since the data is "
-        "labelled.",
-        default=None,
-    )
 
     args = parser.parse_args()
 
@@ -94,31 +85,11 @@ if __name__ == "__main__":
         verbose=args.verbose,
     )
 
-    # preprocessed hdfs dataset & ground truth available
-    # slightly different feature extraction process required
-    if args.hdfs:
-        df_parsed_log = pd.read_csv(
-            args.parsed_log_file, converters={"EventSequence": literal_eval}
-        )  # required to read as a literal list dtype
+    # load parsed log file
+    df_parsed_log = pd.read_csv(args.parsed_log_file)
 
-        # instantiate a FeatureExtractor
-        feature_extractor = FeatureExtractor(
-            training_mode=True,
-            data_transformation=None,
-            output_dir=args.output_dir,
-            name=args.name,
-            verbose=args.verbose,
-        )
-        feature_extractor.unique_keys = df_parsed_log["Label"].unique()
-        num_unique_keys = df_parsed_log["Label"].nunique()
-        features_dataset = feature_extractor.fit_transform(df_parsed_log)
-    else:
-        # load parsed log file
-        df_parsed_log = pd.read_csv(args.parsed_log_file)
-        # extract features from given parsed log file
-        features_dataset = inference_engine.get_features(df_parsed_log=df_parsed_log)
-        # todo: get number of unique keys
-        num_unique_keys = df_parsed_log["EventId"].nunique()
+    # get number of unique keys
+    num_unique_keys = df_parsed_log["EventId"].nunique()
 
     start_t = datetime.now()
     print("==========================")
@@ -127,10 +98,10 @@ if __name__ == "__main__":
 
     # parameters --> manually change this to tune different parameters and set others to optimal values
     parameter_dict = {
-        "hidden_size": [2 ** x for x in range(4, 5)],
-        "num_layers": range(1, 3),
+        "hidden_size": [2 ** x for x in range(4, 8)],
+        "num_layers": range(1, 5),
         "bidirectional": [True, False],
-        # "window_size": range(2, 16),  # might not tune on this first
+        "window_size": range(1, 20),
         # "num_candidates": range(1, 13), }  # might not tune on this first
     }
 
@@ -140,9 +111,6 @@ if __name__ == "__main__":
     results = []  # store evaluation results of the various models
     tuning_record = []  # store tuning record of the process
 
-    # set output size
-    inference_engine.output_size = num_unique_keys
-
     # get new parameters from ParameterGrid
     for idx, params in tqdm(enumerate(parameter_grid), desc="\nTuning . . . .", mininterval=0.01):
         print("\nConsidering parameter set {}: {}".format(idx, params))
@@ -150,13 +118,25 @@ if __name__ == "__main__":
         inference_engine.hidden_size = params["hidden_size"]
         inference_engine.num_lstm_layers = params["num_layers"]
         inference_engine.bidirectional_lstm = params["bidirectional"]
+        inference_engine.window_size = params["window_size"]
+
+        # set output size
+        inference_engine.output_size = num_unique_keys + 2  # take into account PAD and OOV
 
         # update the Feature Extractor and LSTM AD Model
         inference_engine.update_component_parameters()
 
+        # extract features - depends on window size
+        # extract features from given parsed log file
+        features_dataset = inference_engine.get_features(df_parsed_log=df_parsed_log)
+
         # re-run the process
         # load data into data_loader
         data_loader = inference_engine.batch_and_load_data_to_tensors(features_dataset=features_dataset)
+
+        # print the model --> verify that parameters are changing
+        print(inference_engine.model)
+
         # train the anomaly detection model
         inference_engine.train_model(train_data=data_loader)
 
