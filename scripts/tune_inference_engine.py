@@ -102,6 +102,7 @@ if __name__ == "__main__":
         "num_layers": range(1, 5),
         "bidirectional": [True, False],
         "window_size": range(1, 20),
+        "batch_size": [8, 16, 32, 64, 128],
         # "num_candidates": range(1, 13), }  # might not tune on this first
     }
 
