@@ -7,7 +7,6 @@ __date__ = "2021"
 import argparse
 import pandas as pd
 import sys
-from ast import literal_eval
 from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_score
 
 sys.path.append("..")
@@ -111,39 +110,10 @@ if __name__ == "__main__":
         verbose=args.verbose,
     )
 
-    # preprocessed hdfs dataset & ground truth available
-    # slightly different feature extraction process required
-    if args.evaluate:
-        df_parsed_log = pd.read_csv(
-            args.parsed_log_file, converters={"EventSequence": literal_eval}
-        )  # required to read as a literal list dtype
-        if args.mode == "training":
-            # instantiate a FeatureExtractor
-            feature_extractor = FeatureExtractor(
-                training_mode=True,
-                data_transformation=None,
-                output_dir=args.output_dir,
-                name=args.name,
-                verbose=args.verbose,
-            )
-            feature_extractor.unique_keys = df_parsed_log["Label"].unique()
-            features_dataset = feature_extractor.fit_transform(df_parsed_log)
-        else:
-            # instantiate a FeatureExtractor
-            feature_extractor = FeatureExtractor(
-                training_mode=False,
-                data_transformation=args.transformation,
-                output_dir=args.output_dir,
-                name=args.name,
-                verbose=args.verbose,
-            )
-            features_dataset = feature_extractor.transform(df_parsed_log)
-
-    else:
-        # load parsed log file
-        df_parsed_log = pd.read_csv(args.parsed_log_file)
-        # extract features from given parsed log file
-        features_dataset = inference_engine.get_features(df_parsed_log=df_parsed_log)
+    # load parsed log file
+    df_parsed_log = pd.read_csv(args.parsed_log_file)
+    # extract features from given parsed log file
+    features_dataset = inference_engine.get_features(df_parsed_log=df_parsed_log)
 
     if args.mode == "training":
         print(". . . running Inference Engine in training mode . . .\n")
@@ -175,14 +145,14 @@ if __name__ == "__main__":
         # load the ground truth for anomalies
         df_anomaly_ground_truth = pd.read_csv(args.evaluate)
 
-        # append true anomaly labels to the anomaly detection report
-        anomaly_detection_report["anomaly_ground_truth"] = df_anomaly_ground_truth["SessionLabel"]
+        # merge ground truth labels with anomaly detection report
+        anomaly_detection_report = pd.merge(anomaly_detection_report, df_anomaly_ground_truth, on=["session_id"])
 
         # per session evaluation - for hdfs (anomalies are recorded per session)
         anomaly_detection_report = anomaly_detection_report.groupby("session_id", as_index=False).sum()
-        anomaly_detection_report["anomaly_ground_truth"] = (
-            anomaly_detection_report["anomaly_ground_truth"] > 0
-        ).astype(int)
+        anomaly_detection_report["Anomaly Label (GT)"] = (anomaly_detection_report["Anomaly Label (GT)"] > 0).astype(
+            int
+        )
         anomaly_detection_report["anomaly"] = (anomaly_detection_report["anomaly"] > 0).astype(int)
 
         # per line evaluation - future support for other log files if ground truth is available

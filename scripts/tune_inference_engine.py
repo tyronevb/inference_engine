@@ -98,11 +98,11 @@ if __name__ == "__main__":
 
     # parameters --> manually change this to tune different parameters and set others to optimal values
     parameter_dict = {
-        "hidden_size": [2 ** x for x in range(4, 8)],
+        "hidden_size": [2 ** x for x in range(6, 9)],
         "num_layers": range(1, 5),
         "bidirectional": [True, False],
         "window_size": range(1, 20),
-        "batch_size": [8, 16, 32, 64, 128],
+        "batch_size": [64],  # change manually
         # "num_candidates": range(1, 13), }  # might not tune on this first
     }
 
