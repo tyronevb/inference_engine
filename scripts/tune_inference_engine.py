@@ -8,6 +8,7 @@ import argparse
 import pandas as pd
 import numpy as np
 import sys
+from ast import literal_eval
 from datetime import datetime
 from tqdm import tqdm
 from sklearn.model_selection import ParameterGrid
@@ -70,6 +71,13 @@ if __name__ == "__main__":
         default=None,
         help="Specify which compute device to use for deep learning model training and inference",
     )
+    parser.add_argument(
+        "-p",
+        "--processed",
+        action="store",
+        help="Specify whether data is already processed into features.",
+        default=None,
+    )
 
     args = parser.parse_args()
 
@@ -85,11 +93,32 @@ if __name__ == "__main__":
         verbose=args.verbose,
     )
 
-    # load parsed log file
-    df_parsed_log = pd.read_csv(args.parsed_log_file)
+    # preprocessed hdfs dataset & ground truth available
+    # slightly different feature extraction process required
+    if args.processed:
+        df_parsed_log = pd.read_csv(
+            args.parsed_log_file, converters={"EventSequence": literal_eval}
+        )  # required to read as a literal list dtype
 
-    # get number of unique keys
-    num_unique_keys = df_parsed_log["EventId"].nunique()
+        # instantiate a FeatureExtractor
+        feature_extractor = FeatureExtractor(
+            training_mode=True,
+            data_transformation=None,
+            output_dir=args.output_dir,
+            name=args.name,
+            verbose=args.verbose,
+        )
+        feature_extractor.unique_keys = df_parsed_log["Label"].unique()
+        num_unique_keys = df_parsed_log["Label"].nunique()
+        features_dataset = feature_extractor.fit_transform(df_parsed_log)
+    else:
+        # load parsed log file
+        df_parsed_log = pd.read_csv(args.parsed_log_file)
+
+        # get number of unique keys
+        num_unique_keys = df_parsed_log["EventId"].nunique()
+
+        features_dataset = inference_engine.get_features(df_parsed_log=df_parsed_log)
 
     start_t = datetime.now()
     print("==========================")
@@ -128,9 +157,11 @@ if __name__ == "__main__":
         # update the Feature Extractor and LSTM AD Model
         inference_engine.update_component_parameters()
 
-        # extract features - depends on window size
-        # extract features from given parsed log file
-        features_dataset = inference_engine.get_features(df_parsed_log=df_parsed_log)
+        # window size tuning only available for raw, parsed logs!
+        if not args.processed:
+            # extract features - depends on window size
+            # extract features from given parsed log file
+            features_dataset = inference_engine.get_features(df_parsed_log=df_parsed_log)
 
         # re-run the process
         # load data into data_loader

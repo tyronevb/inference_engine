@@ -7,6 +7,7 @@ __date__ = "2021"
 import argparse
 import pandas as pd
 import sys
+from ast import literal_eval
 from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_score
 
 sys.path.append("..")
@@ -95,6 +96,13 @@ if __name__ == "__main__":
         " and in inference mode. Transformation to be stored in yaml file.",
         default=None,
     )
+    parser.add_argument(
+        "-p",
+        "--processed",
+        action="store",
+        help="Specify whether data is already processed into features.",
+        default=None,
+    )
 
     args = parser.parse_args()
 
@@ -110,10 +118,48 @@ if __name__ == "__main__":
         verbose=args.verbose,
     )
 
-    # load parsed log file
-    df_parsed_log = pd.read_csv(args.parsed_log_file)
-    # extract features from given parsed log file
-    features_dataset = inference_engine.get_features(df_parsed_log=df_parsed_log)
+    # todo: dynamically set output size
+
+    if args.processed:
+        # if the given log file is already processed into features of events
+        # and input windows and next keys
+        df_parsed_log = pd.read_csv(
+            args.parsed_log_file, converters={"EventSequence": literal_eval}
+        )  # required to read as a literal list dtype
+
+        if args.mode == "training":
+            # if in training mode . . .
+            # instantiate a FeatureExtractor
+            feature_extractor = FeatureExtractor(
+                training_mode=True,
+                data_transformation=None,
+                output_dir=args.output_dir,
+                name=args.name,
+                verbose=args.verbose,
+            )
+
+            feature_extractor.unique_keys = df_parsed_log["Label"].unique()  # get the unique keys
+            num_unique_keys = df_parsed_log["Label"].nunique() + 2  # get the number of unique keys, +2 for OOV and PAD
+            features_dataset = feature_extractor.fit_transform(df_parsed_log)  # transform features
+        else:
+            # in inference mode . . .
+            feature_extractor = FeatureExtractor(
+                training_mode=False,
+                data_transformation=args.transformation,
+                output_dir=args.output_dir,
+                name=args.name,
+                verbose=args.verbose,
+            )
+            features_dataset = feature_extractor.transform(df_parsed_log)
+    else:
+        # load parsed log file
+        df_parsed_log = pd.read_csv(args.parsed_log_file)
+        # extract features from given parsed log file
+        features_dataset = inference_engine.get_features(df_parsed_log=df_parsed_log)
+        num_unique_keys = df_parsed_log["EventId"].nunique() + 2  # get the number of unique keys, +2 for OOV and PAD
+
+    inference_engine.output_size = num_unique_keys
+    inference_engine.update_component_parameters()
 
     if args.mode == "training":
         print(". . . running Inference Engine in training mode . . .\n")
@@ -142,25 +188,47 @@ if __name__ == "__main__":
     if args.evaluate:
         print("Inference Engine Anomaly Detection Performance")
 
-        # load the ground truth for anomalies
-        df_anomaly_ground_truth = pd.read_csv(args.evaluate)
+        if args.processed:
+            # load the ground truth for anomalies
+            df_anomaly_ground_truth = pd.read_csv(args.evaluate)
 
-        # merge ground truth labels with anomaly detection report
-        anomaly_detection_report = pd.merge(anomaly_detection_report, df_anomaly_ground_truth, on=["session_id"])
+            # append true anomaly labels to the anomaly detection report
+            anomaly_detection_report["anomaly_ground_truth"] = df_anomaly_ground_truth["SessionLabel"]
 
-        # per session evaluation - for hdfs (anomalies are recorded per session)
-        anomaly_detection_report = anomaly_detection_report.groupby("session_id", as_index=False).sum()
-        anomaly_detection_report["Anomaly Label (GT)"] = (anomaly_detection_report["Anomaly Label (GT)"] > 0).astype(
-            int
-        )
-        anomaly_detection_report["anomaly"] = (anomaly_detection_report["anomaly"] > 0).astype(int)
+            # per session evaluation - for hdfs (anomalies are recorded per session)
+            anomaly_detection_report = anomaly_detection_report.groupby("session_id", as_index=False).sum()
+            anomaly_detection_report["anomaly_ground_truth"] = (
+                anomaly_detection_report["anomaly_ground_truth"] > 0
+            ).astype(int)
+            anomaly_detection_report["anomaly"] = (anomaly_detection_report["anomaly"] > 0).astype(int)
 
-        # per line evaluation - future support for other log files if ground truth is available
-        # nothing special here - just use the columns
-        # todo: add a flag to specify per session or per line anomaly evaluation
+            # per line evaluation - future support for other log files if ground truth is available
+            # nothing special here - just use the columns
+            # todo: add a flag to specify per session or per line anomaly evaluation
 
-        y_true = anomaly_detection_report["anomaly_ground_truth"]
-        y_pred = anomaly_detection_report["anomaly"]
+            y_true = anomaly_detection_report["anomaly_ground_truth"]
+            y_pred = anomaly_detection_report["anomaly"]
+
+        else:
+            # load the ground truth for anomalies
+            df_anomaly_ground_truth = pd.read_csv(args.evaluate)
+
+            # merge ground truth labels with anomaly detection report
+            anomaly_detection_report = pd.merge(anomaly_detection_report, df_anomaly_ground_truth, on=["session_id"])
+
+            # per session evaluation - for hdfs (anomalies are recorded per session)
+            anomaly_detection_report = anomaly_detection_report.groupby("session_id", as_index=False).sum()
+            anomaly_detection_report["Anomaly Label (GT)"] = (
+                anomaly_detection_report["Anomaly Label (GT)"] > 0
+            ).astype(int)
+            anomaly_detection_report["anomaly"] = (anomaly_detection_report["anomaly"] > 0).astype(int)
+
+            # per line evaluation - future support for other log files if ground truth is available
+            # nothing special here - just use the columns
+            # todo: add a flag to specify per session or per line anomaly evaluation
+
+            y_true = anomaly_detection_report["Anomaly Label (GT)"]
+            y_pred = anomaly_detection_report["anomaly"]
 
         tn, fp, fn, tp = confusion_matrix(y_true=y_true, y_pred=y_pred).ravel()
 
