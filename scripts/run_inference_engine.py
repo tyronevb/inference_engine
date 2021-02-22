@@ -150,6 +150,7 @@ if __name__ == "__main__":
                 verbose=args.verbose,
             )
             features_dataset = feature_extractor.transform(df_parsed_log)
+            num_unique_keys = len(feature_extractor.data_transformation)
     else:
         # load parsed log file
         df_parsed_log = pd.read_csv(args.parsed_log_file)
