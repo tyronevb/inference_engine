@@ -65,6 +65,12 @@ if __name__ == "__main__":
         choices=["uniform", "sequential"],
         default="uniform",
     )
+    parser.add_argument(
+        "-n",
+        "--normal_only",
+        action="store_true",
+        help="Specify that training dataset shall only consist of non-anomalous sessions",
+    )
 
     args = parser.parse_args()
 
@@ -83,6 +89,7 @@ if __name__ == "__main__":
         split_type=args.split,
         save_csv=False,
         window_size=args.window_size,
+        normal_only=args.normal_only,
     )
 
     # merge x and window y

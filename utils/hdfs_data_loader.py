@@ -17,7 +17,7 @@ import re
 from collections import OrderedDict
 
 
-def _split_data(x_data, y_data=None, train_ratio=0, validation_ratio=0, split_type="uniform"):
+def _split_data(x_data, y_data=None, train_ratio=0, validation_ratio=0, split_type="uniform", normal_only=False):
     if split_type == "uniform" and y_data is not None:
         pos_idx = y_data > 0
         x_pos = x_data[pos_idx]
@@ -30,9 +30,15 @@ def _split_data(x_data, y_data=None, train_ratio=0, validation_ratio=0, split_ty
 
         validation_pos = int(validation_ratio * x_pos.shape[0])
         validation_neq = int(validation_ratio * x_neg.shape[0])
+        if normal_only:
+            # training dataset to only consist of normal (i.e. non-anomalous) sessions)
+            x_train = x_neg[0:train_neg]
+            y_train = y_neg[0:train_neg]
 
-        x_train = np.hstack([x_pos[0:train_pos], x_neg[0:train_neg]])
-        y_train = np.hstack([y_pos[0:train_pos], y_neg[0:train_neg]])
+        else:
+            # training dataset to consist of both normal and abnormal (anomalous) sessions
+            x_train = np.hstack([x_pos[0:train_pos], x_neg[0:train_neg]])
+            y_train = np.hstack([y_pos[0:train_pos], y_neg[0:train_neg]])
 
         x_validation = np.hstack(
             [x_pos[train_pos : train_pos + validation_pos], x_neg[train_neg : train_neg + validation_neq]]
@@ -72,6 +78,7 @@ def load_HDFS(
     split_type="sequential",
     save_csv=False,
     window_size=0,
+    normal_only=False,
 ):
     """Load HDFS structured log into train and test data.
 
@@ -115,7 +122,12 @@ def load_HDFS(
 
         # Split train and test data
         (x_train, y_train), (x_validation, y_validation), (x_test, y_test) = _split_data(
-            data_df["EventSequence"].values, data_df["Label"].values, train_ratio, validation_ratio, split_type
+            data_df["EventSequence"].values,
+            data_df["Label"].values,
+            train_ratio,
+            validation_ratio,
+            split_type,
+            normal_only,
         )
 
     if save_csv:
