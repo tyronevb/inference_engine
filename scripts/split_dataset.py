@@ -43,6 +43,7 @@ if __name__ == "__main__":
         action="store",
         help="Ratio of data to use for train set",
         type=float,
+        default=0.64,
     )
     parser.add_argument(
         "-v",
@@ -50,6 +51,7 @@ if __name__ == "__main__":
         action="store",
         help="Ratio of data to use for validation set",
         type=float,
+        default=0.16,
     )
     parser.add_argument(
         "-w", "--window_size", action="store", help="Size of sliding window to use when creating features", type=int

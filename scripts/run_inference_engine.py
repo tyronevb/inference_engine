@@ -99,9 +99,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-p",
         "--processed",
-        action="store",
+        action="store_true",
         help="Specify whether data is already processed into features.",
-        default=None,
     )
 
     args = parser.parse_args()
@@ -237,10 +236,13 @@ if __name__ == "__main__":
         f1_measure = f1_score(y_true=y_true, y_pred=y_pred)
         false_alarm_rate = fp / (tn + fp)
 
+        print("Number of anomalies in ground truth: {}".format(y_true.sum()))
+
         print(
-            "Precision: {precision}\nRecall: {recall}\nF1: {f1}\nFalse Positives: {fp}\nFalse Negatives: {fn}"
+            "Precision: {precision}\nRecall: {recall}\nF1: {f1}\nTrue Positives: {tp}\n"
+            "True Negatives: {tn}\nFalse Positives: {fp}\nFalse Negatives: {fn}"
             "\nFalse Alarm Rate: {far}".format(
-                precision=precision, recall=recall, f1=f1_measure, fp=fp, fn=fn, far=false_alarm_rate
+                precision=precision, recall=recall, f1=f1_measure, tp=tp, tn=tn, fp=fp, fn=fn, far=false_alarm_rate
             )
         )
 
