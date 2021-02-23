@@ -102,6 +102,12 @@ if __name__ == "__main__":
         action="store_true",
         help="Specify whether data is already processed into features.",
     )
+    parser.add_argument(
+        "-k",
+        "--keys",
+        action="store",
+        help="Path to csv file containing all expected log event keys for this system",
+    )
 
     args = parser.parse_args()
 
@@ -137,9 +143,9 @@ if __name__ == "__main__":
                 verbose=args.verbose,
             )
 
-            feature_extractor.unique_keys = df_parsed_log["Label"].unique()  # get the unique keys
-            num_unique_keys = df_parsed_log["Label"].nunique() + 2  # get the number of unique keys, +2 for OOV and PAD
-            features_dataset = feature_extractor.fit_transform(df_parsed_log)  # transform features
+            # feature_extractor.unique_keys = df_parsed_log["Label"].unique()  # get the unique keys
+            # num_unique_keys = df_parsed_log["Label"].nunique() + 2  # get the number of unique keys, +2 for OOV and PAD
+            features_dataset = feature_extractor.fit_transform(args.keys, df_parsed_log)  # transform features
         else:
             # in inference mode . . .
             feature_extractor = FeatureExtractor(
@@ -150,16 +156,19 @@ if __name__ == "__main__":
                 verbose=args.verbose,
             )
             features_dataset = feature_extractor.transform(df_parsed_log)
-            num_unique_keys = len(feature_extractor.data_transformation)
+            # num_unique_keys = len(feature_extractor.data_transformation)
     else:
+        # TODO: refactor to use given keys to create transformation
+        # TODO: required refactoring of feature extractor as well
         # load parsed log file
         df_parsed_log = pd.read_csv(args.parsed_log_file)
         # extract features from given parsed log file
         features_dataset = inference_engine.get_features(df_parsed_log=df_parsed_log)
-        num_unique_keys = df_parsed_log["EventId"].nunique() + 2  # get the number of unique keys, +2 for OOV and PAD
+        # num_unique_keys = df_parsed_log["EventId"].nunique() + 2  # get the number of unique keys, +2 for OOV and PAD
 
-    inference_engine.output_size = num_unique_keys
-    inference_engine.update_component_parameters()
+    # output size must be specified in config file and must = number of unique events + 2
+    # inference_engine.output_size = num_unique_keys
+    # inference_engine.update_component_parameters()
 
     if args.mode == "training":
         print(". . . running Inference Engine in training mode . . .\n")

@@ -76,6 +76,7 @@ class FeatureExtractor(object):
         # create attribute for storing set of unique log keys
         self.unique_keys = None
 
+    # TODO: refactor to accomodate change to what is used to create features
     def extract_features(self, df_parsed_log: pd.DataFrame, save_to_file: bool = False) -> pd.DataFrame:
         """
         Extract features from parsed log file DataFrame.
@@ -239,7 +240,8 @@ class FeatureExtractor(object):
 
         return df_dataset
 
-    def fit_transform(self, feature_dataset: pd.DataFrame) -> pd.DataFrame:
+    # TODO: refactor FeatureExtractor to take in DataFrame containing all possible log events
+    def fit_transform(self, event_keys: str, feature_dataset: pd.DataFrame) -> pd.DataFrame:
         """
         Apply a transformation to the log keys on a data set to be used for training.
 
@@ -249,14 +251,17 @@ class FeatureExtractor(object):
 
         In the context of training, the transformation is first derived.
 
-        :param feature_dataset: DataFrame of features
+        :param event_keys: Path to csv file containing all possible log events keys for the given system
+        :param feature_dataset: DataFrame contraining features
         :return: DataFrame of feature dataset with transformation applied
         """
+        df_event_keys = pd.read_csv(event_keys)
         # derive the data transformation and feature representation
         # each unique log key is mapped to a unique integer (list of keys used here excludes padding)
         # start at 2 as 0 is used for out-of-vocabulary i.e. the default of dict.get
         # and 1 is used for padding words
-        transformation = {log_key: value for value, log_key in enumerate(self.unique_keys, 2)}
+        # transformation = {log_key: value for value, log_key in enumerate(self.unique_keys, 2)}
+        transformation = {log_key: value for value, log_key in enumerate(df_event_keys["EventId"], 2)}
 
         transformation["OOV"] = 0
         transformation["PAD"] = 1
