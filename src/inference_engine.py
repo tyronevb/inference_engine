@@ -89,6 +89,7 @@ class InferenceEngine(object):
         self.sample_by_session = data["session_sampling"]
         self.window_size = data["window_size"]
         self.data_transformation = data["data_transformation"]
+        self.event_keys = data["event_keys"]
 
         # model parameters
         self.input_size = data["input_size"]
@@ -118,6 +119,7 @@ class InferenceEngine(object):
             data_transformation=self.data_transformation,
             output_dir=self.path,
             name=self.ie_name,
+            event_key=self.event_keys,
             verbose=self.verbose,
         )
 

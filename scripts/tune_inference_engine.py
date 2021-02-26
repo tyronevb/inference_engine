@@ -78,6 +78,13 @@ if __name__ == "__main__":
         help="Specify whether data is already processed into features.",
         default=None,
     )
+    parser.add_argument(
+        "-k",
+        "--keys",
+        action="store",
+        help="Path to csv file containing all expected log event keys for this system",
+        default=None,
+    )
 
     args = parser.parse_args()
 
@@ -106,17 +113,17 @@ if __name__ == "__main__":
             data_transformation=None,
             output_dir=args.output_dir,
             name=args.name,
+            event_keys=args.keys,
             verbose=args.verbose,
         )
-        feature_extractor.unique_keys = df_parsed_log["Label"].unique()
-        num_unique_keys = df_parsed_log["Label"].nunique()
-        features_dataset = feature_extractor.fit_transform(df_parsed_log)
+        features_dataset = feature_extractor.fit_transform(df_parsed_log)  # transform features
+
     else:
         # load parsed log file
         df_parsed_log = pd.read_csv(args.parsed_log_file)
 
         # get number of unique keys
-        num_unique_keys = df_parsed_log["EventId"].nunique()
+        # num_unique_keys = df_parsed_log["EventId"].nunique()
 
         features_dataset = inference_engine.get_features(df_parsed_log=df_parsed_log)
 
@@ -151,8 +158,8 @@ if __name__ == "__main__":
         inference_engine.window_size = params["window_size"]
         inference_engine.batch_size = params["batch_size"]
 
-        # set output size
-        inference_engine.output_size = num_unique_keys + 2  # take into account PAD and OOV
+        # set output size -> must be specified in the configuration file and be based on total num unique keys + 2
+        # inference_engine.output_size = num_unique_keys + 2  # take into account PAD and OOV
 
         # update the Feature Extractor and LSTM AD Model
         inference_engine.update_component_parameters()

@@ -107,6 +107,7 @@ if __name__ == "__main__":
         "--keys",
         action="store",
         help="Path to csv file containing all expected log event keys for this system",
+        default=None,
     )
 
     args = parser.parse_args()
@@ -123,8 +124,6 @@ if __name__ == "__main__":
         verbose=args.verbose,
     )
 
-    # todo: dynamically set output size
-
     if args.processed:
         # if the given log file is already processed into features of events
         # and input windows and next keys
@@ -140,12 +139,13 @@ if __name__ == "__main__":
                 data_transformation=None,
                 output_dir=args.output_dir,
                 name=args.name,
+                event_keys=args.keys,
                 verbose=args.verbose,
             )
 
             # feature_extractor.unique_keys = df_parsed_log["Label"].unique()  # get the unique keys
             # num_unique_keys = df_parsed_log["Label"].nunique() + 2  # get the number of unique keys, +2 for OOV and PAD
-            features_dataset = feature_extractor.fit_transform(args.keys, df_parsed_log)  # transform features
+            features_dataset = feature_extractor.fit_transform(df_parsed_log)  # transform features
         else:
             # in inference mode . . .
             feature_extractor = FeatureExtractor(
@@ -153,13 +153,12 @@ if __name__ == "__main__":
                 data_transformation=args.transformation,
                 output_dir=args.output_dir,
                 name=args.name,
+                event_keys=None,
                 verbose=args.verbose,
             )
             features_dataset = feature_extractor.transform(df_parsed_log)
             # num_unique_keys = len(feature_extractor.data_transformation)
     else:
-        # TODO: refactor to use given keys to create transformation
-        # TODO: required refactoring of feature extractor as well
         # load parsed log file
         df_parsed_log = pd.read_csv(args.parsed_log_file)
         # extract features from given parsed log file
