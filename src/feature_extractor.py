@@ -84,6 +84,7 @@ class FeatureExtractor(object):
 
         # create attribute for storing set of unique log keys
         self.unique_keys = None
+        self.num_unique_keys = None
 
     # TODO: refactor to accomodate change to what is used to create features
     def extract_features(self, df_parsed_log: pd.DataFrame, save_to_file: bool = False) -> pd.DataFrame:
@@ -276,6 +277,7 @@ class FeatureExtractor(object):
 
         # set the data transformation attribute
         self.data_transformation = transformation
+        self.num_unique_keys = len(self.data_transformation)
 
         # save derived transformation to a yaml file
         timestamp = datetime.datetime.now().strftime("%d-%m-%Y-%Hh%Mm%Ss")
