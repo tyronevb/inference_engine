@@ -74,7 +74,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-p",
         "--processed",
-        action="store",
+        action="store_true",
         help="Specify whether data is already processed into features.",
         default=None,
     )

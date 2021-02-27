@@ -119,7 +119,7 @@ class InferenceEngine(object):
             data_transformation=self.data_transformation,
             output_dir=self.path,
             name=self.ie_name,
-            event_key=self.event_keys,
+            event_keys=self.event_keys,
             verbose=self.verbose,
         )
 
@@ -416,7 +416,6 @@ class InferenceEngine(object):
 
         return report_df
 
-    # todo complete when doing the tuning, testing and evaluation framework
     def evaluate_model(self, df_report: pd.DataFrame) -> [datetime.datetime, float]:
         """
         Evaluate LSTM model performance.
@@ -433,7 +432,7 @@ class InferenceEngine(object):
         """
         # check for anomalies: compare prediction to next real log event
 
-        # todo: this should return ALL Performance Metrics - NO - that would require ground truth
+        # this should return ALL Performance Metrics - NO - that would require ground truth
         # this method only evaluates the accuracy with which the model can correctly predict the next log key for a given input sequence of logs
         # and also the inference time
 
@@ -460,6 +459,7 @@ class InferenceEngine(object):
             data_transformation=self.data_transformation,
             output_dir=self.path,
             name=self.ie_name,
+            event_keys=self.event_keys,
             verbose=self.verbose,
         )
 
