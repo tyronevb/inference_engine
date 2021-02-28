@@ -126,6 +126,7 @@ if __name__ == "__main__":
         # num_unique_keys = df_parsed_log["EventId"].nunique()
 
         features_dataset = inference_engine.get_features(df_parsed_log=df_parsed_log)
+        inference_engine.output_size = len(inference_engine.feature_extractor.data_transformation)
 
     start_t = datetime.now()
     print("==========================")
