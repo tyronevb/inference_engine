@@ -173,6 +173,17 @@ if __name__ == "__main__":
         print(". . . running Inference Engine in training mode . . .\n")
         # for training mode, split into batches and encode as tensors
         data_loader = inference_engine.batch_and_load_data_to_tensors(features_dataset=features_dataset)
+
+        if args.processed:
+            # get the total number of classes from datastore
+            num_classes = feature_extractor.num_unique_keys
+        else:
+            num_classes = inference_engine.feature_extractor.num_unique_keys
+
+        # update the inference_engine parameters --> output_size
+        inference_engine.output_size = num_classes
+        inference_engine.update_component_parameters()
+
         # train the anomaly detection model
         inference_engine.train_model(train_data=data_loader)
 
